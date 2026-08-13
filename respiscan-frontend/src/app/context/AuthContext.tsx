@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 type Role = 'admin' | 'employee';
 
 interface User {
+  id: string;
   name: string;
   role: Role;
   email: string;
@@ -10,21 +11,32 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (role: Role, email: string) => void;
+  login: (user: User) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem('repiscan_session');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
 
-  const login = (role: Role, email: string) => {
-    setUser({
-      role,
-      email,
-      name: role === 'admin' ? 'Dr. Santos' : 'Nurse Jenkins', // Mock names based on role
-    });
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('repiscan_session', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('repiscan_session');
+    }
+  }, [user]);
+
+  const login = (userData: User) => {
+    setUser(userData);
   };
 
   const logout = () => {

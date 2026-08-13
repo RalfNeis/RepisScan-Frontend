@@ -41,7 +41,7 @@ export function Layout() {
             Repiscan
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <div className="flex-1 overflow-y-auto py-4 px-3 flex flex-col gap-1">
           {filteredNavigation.map((item) => (
             <NavLink
               key={item.name}
@@ -60,6 +60,22 @@ export function Layout() {
               {item.name}
             </NavLink>
           ))}
+          <div className="mt-auto">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors',
+                  isActive
+                    ? 'bg-teal-600/10 text-teal-400'
+                    : 'hover:bg-slate-800 hover:text-white'
+                )
+              }
+            >
+              <Settings className="h-5 w-5" />
+              Settings
+            </NavLink>
+          </div>
         </div>
         <div className="p-4 border-t border-slate-800">
           <div className="flex items-center gap-3 mb-4 px-2">

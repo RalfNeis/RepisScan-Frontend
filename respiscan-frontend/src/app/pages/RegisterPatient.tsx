@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ChevronLeft, User, Phone, MapPin, HeartPulse, AlertCircle, UserCheck, Check } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { useData } from '../context/DataContext';
 
 type FormData = {
   firstName: string;
@@ -96,9 +97,11 @@ const empty: FormData = {
 
 export function RegisterPatient() {
   const navigate = useNavigate();
+  const { addPatient } = useData();
   const [form, setForm] = useState<FormData>(empty);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [newPatientId, setNewPatientId] = useState('');
 
   const set = (field: keyof FormData) => (value: string) =>
     setForm(f => ({ ...f, [field]: value }));
@@ -128,8 +131,11 @@ export function RegisterPatient() {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setErrors({});
+
+    const newPatient = addPatient(form);
+    setNewPatientId(newPatient.id);
     setSubmitted(true);
-    setTimeout(() => navigate('/patients'), 1800);
+    setTimeout(() => navigate('/patients'), 2000);
   };
 
   if (submitted) {
@@ -139,14 +145,14 @@ export function RegisterPatient() {
           <Check className="h-8 w-8 text-teal-600" />
         </div>
         <p className="text-lg font-semibold text-slate-900">Patient Record Saved</p>
-        <p className="text-sm text-slate-500">Redirecting to Patient Records...</p>
+        <p className="text-sm text-slate-500">Patient ID: <span className="font-medium text-teal-600">{newPatientId}</span></p>
+        <p className="text-sm text-slate-400">Redirecting to Patient Records...</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      {/* Back link */}
       <button
         onClick={() => navigate('/patients')}
         className="flex items-center gap-1 text-sm text-slate-500 hover:text-teal-600 transition-colors"
@@ -155,7 +161,6 @@ export function RegisterPatient() {
         Back to Patient Database
       </button>
 
-      {/* Page header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Register New Patient</h2>
         <p className="text-slate-500 mt-1">Enter demographic data to create a new record prior to diagnosis.</p>
@@ -166,36 +171,26 @@ export function RegisterPatient() {
         {/* ── Personal Information ── */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <SectionHeader icon={User} title="Personal Information" />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* First Name */}
             <div>
               <Label required>First Name</Label>
               <FieldInput value={form.firstName} onChange={set('firstName')} placeholder="e.g. Juan" />
               {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
             </div>
-
-            {/* Last Name */}
             <div>
               <Label required>Last Name</Label>
               <FieldInput value={form.lastName} onChange={set('lastName')} placeholder="e.g. Dela Cruz" />
               {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
             </div>
-
-            {/* Middle Name */}
             <div className="sm:col-span-2">
               <Label>Middle Name</Label>
               <FieldInput value={form.middleName} onChange={set('middleName')} placeholder="e.g. Santos (optional)" />
             </div>
-
-            {/* Date of Birth */}
             <div>
               <Label required>Date of Birth</Label>
               <FieldInput value={form.dateOfBirth} onChange={set('dateOfBirth')} type="date" />
               {errors.dateOfBirth && <p className="text-xs text-red-500 mt-1">{errors.dateOfBirth}</p>}
             </div>
-
-            {/* Gender */}
             <div>
               <Label required>Gender</Label>
               <SelectField
@@ -210,8 +205,6 @@ export function RegisterPatient() {
               />
               {errors.gender && <p className="text-xs text-red-500 mt-1">{errors.gender}</p>}
             </div>
-
-            {/* Civil Status */}
             <div>
               <Label>Civil Status</Label>
               <SelectField
@@ -226,20 +219,14 @@ export function RegisterPatient() {
                 ]}
               />
             </div>
-
-            {/* Nationality */}
             <div>
               <Label>Nationality</Label>
               <FieldInput value={form.nationality} onChange={set('nationality')} placeholder="e.g. Filipino" />
             </div>
-
-            {/* Occupation */}
             <div>
               <Label>Occupation</Label>
               <FieldInput value={form.occupation} onChange={set('occupation')} placeholder="e.g. Teacher" />
             </div>
-
-            {/* PhilHealth */}
             <div>
               <Label>PhilHealth No.</Label>
               <FieldInput value={form.philhealthNumber} onChange={set('philhealthNumber')} placeholder="XX-XXXXXXXXX-X" />
@@ -250,7 +237,6 @@ export function RegisterPatient() {
         {/* ── Contact Details ── */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <SectionHeader icon={Phone} title="Contact Details" />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label required>Contact Number</Label>
@@ -278,7 +264,6 @@ export function RegisterPatient() {
         {/* ── Emergency Contact ── */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <SectionHeader icon={UserCheck} title="Emergency Contact" />
-
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
               <Label>Full Name</Label>
@@ -310,9 +295,7 @@ export function RegisterPatient() {
         {/* ── Clinical Information ── */}
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <SectionHeader icon={HeartPulse} title="Clinical Information" />
-
           <div className="space-y-4">
-            {/* Chief Complaint */}
             <div>
               <Label>Chief Complaint / Reason for Visit</Label>
               <textarea
@@ -323,8 +306,6 @@ export function RegisterPatient() {
                 className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg text-slate-900 placeholder-slate-400 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition resize-none"
               />
             </div>
-
-            {/* Medical History checkboxes */}
             <div>
               <Label>Relevant Medical History</Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
@@ -354,7 +335,6 @@ export function RegisterPatient() {
                 })}
               </div>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label>Known Allergies</Label>
@@ -396,10 +376,8 @@ export function RegisterPatient() {
           </div>
         </div>
 
-        {/* ── Required note ── */}
         <p className="text-xs text-slate-400">Fields marked with <span className="text-red-500">*</span> are required.</p>
 
-        {/* ── Actions ── */}
         <div className="flex items-center justify-end gap-3 pb-4">
           <button
             type="button"

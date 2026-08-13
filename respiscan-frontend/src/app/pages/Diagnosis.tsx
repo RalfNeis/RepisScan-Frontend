@@ -2,9 +2,81 @@ import React, { useState } from 'react';
 import { Upload, FileDown, ScanHeart, CheckCircle, AlertTriangle, Play, RefreshCw, ZoomIn } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
+import { useParams, useNavigate } from 'react-router';
+import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
+
+type DiagnosisStatus = 'idle' | 'analyzing' | 'complete';
+
+interface MockResult {
+  outcome: 'Positive' | 'Negative';
+  confidence: number;
+  description: string;
+}
+
+function generateMockResult(): MockResult {
+  const isPositive = Math.random() > 0.45;
+  const confidence = isPositive
+    ? parseFloat((85 + Math.random() * 13).toFixed(1))
+    : parseFloat((78 + Math.random() * 18).toFixed(1));
+  return {
+    outcome: isPositive ? 'Positive' : 'Negative',
+    confidence,
+    description: isPositive
+      ? `Consolidation observed in right middle lobe consistent with bacterial pneumonia. Grad-CAM confirms model focus on opacity region (confidence: ${confidence}%).`
+      : `No significant consolidation or infiltrates noted. Lung fields appear clear bilaterally (confidence: ${confidence}%).`,
+  };
+}
 
 export function Diagnosis() {
-  const [status, setStatus] = useState<'idle' | 'analyzing' | 'complete'>('complete'); // Set to complete to show the requested state by default
+  const { patientId } = useParams<{ patientId?: string }>();
+  const navigate = useNavigate();
+  const { getPatientById, addDiagnosisRecord } = useData();
+  const { user } = useAuth();
+
+  const patient = patientId ? getPatientById(patientId) : undefined;
+
+  const [status, setStatus] = useState<DiagnosisStatus>('idle');
+  const [result, setResult] = useState<MockResult | null>(null);
+  const [notes, setNotes] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  const handleRunAnalysis = () => {
+    setStatus('analyzing');
+    setSaved(false);
+    setResult(null);
+    setTimeout(() => {
+      const mockResult = generateMockResult();
+      setResult(mockResult);
+      setNotes(mockResult.description);
+      setStatus('complete');
+    }, 2500);
+  };
+
+  const handleReset = () => {
+    setStatus('idle');
+    setResult(null);
+    setNotes('');
+    setSaved(false);
+  };
+
+  const handleSaveReport = () => {
+    if (!result || !patient || !user) return;
+    addDiagnosisRecord({
+      patientId: patient.id,
+      patientName: `${patient.firstName} ${patient.lastName}`,
+      performedBy: user.name,
+      date: new Date().toISOString().split('T')[0],
+      result: result.outcome,
+      confidence: result.confidence,
+      radiologistNotes: notes,
+    });
+    setSaved(true);
+  };
+
+  const activePatientLabel = patient
+    ? `${patient.id} (${patient.firstName} ${patient.lastName})`
+    : 'No patient selected';
 
   return (
     <div className="space-y-6 h-full flex flex-col">
@@ -16,16 +88,21 @@ export function Diagnosis() {
         <div className="flex items-center gap-3">
           <div className="bg-slate-100 px-4 py-2 rounded-md border border-slate-200 flex items-center gap-2">
             <span className="text-sm text-slate-500">Active Patient:</span>
-            <span className="font-medium text-slate-900">PT-2024-001 (Antonio Garcia)</span>
+            <span className="font-medium text-slate-900">{activePatientLabel}</span>
           </div>
-          <Button variant="outline" onClick={() => setStatus('idle')}>
+          {!patient && (
+            <Button variant="outline" onClick={() => navigate('/patients')}>
+              Select Patient
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleReset}>
             <RefreshCw className="h-4 w-4 mr-2" /> Reset
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1 min-h-0">
-        {/* Sidebar Controls & Info */}
+        {/* Sidebar Controls */}
         <div className="xl:col-span-1 space-y-6 overflow-y-auto pr-2">
           <Card>
             <CardHeader>
@@ -38,8 +115,19 @@ export function Diagnosis() {
                 <p className="text-xs text-slate-500 mt-1">PNG, JPG, DICOM (Max 15MB)</p>
               </div>
 
+              {!patient && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-700">
+                  ⚠ Please select a patient from the Patient Records page before running a scan.
+                </div>
+              )}
+
               {status === 'idle' && (
-                <Button className="w-full" size="lg" onClick={() => setStatus('analyzing')}>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleRunAnalysis}
+                  disabled={!patient}
+                >
                   <Play className="h-5 w-5 mr-2" /> Run Analysis
                 </Button>
               )}
@@ -50,22 +138,31 @@ export function Diagnosis() {
                 </Button>
               )}
 
-              {status === 'complete' && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-red-700 font-semibold">
-                    <AlertTriangle className="h-5 w-5" />
-                    Detection: Positive
+              {status === 'complete' && result && (
+                <div className={`border rounded-lg p-4 flex flex-col gap-2 ${result.outcome === 'Positive' ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                  <div className={`flex items-center gap-2 font-semibold ${result.outcome === 'Positive' ? 'text-red-700' : 'text-green-700'}`}>
+                    {result.outcome === 'Positive'
+                      ? <AlertTriangle className="h-5 w-5" />
+                      : <CheckCircle className="h-5 w-5" />
+                    }
+                    Detection: {result.outcome}
                   </div>
-                  <p className="text-sm text-red-600">
-                    Bacterial Pneumonia detected with high confidence in the right middle lobe.
+                  <p className={`text-sm ${result.outcome === 'Positive' ? 'text-red-600' : 'text-green-600'}`}>
+                    {result.outcome === 'Positive'
+                      ? 'Bacterial Pneumonia detected with high confidence.'
+                      : 'No pneumonia patterns detected.'
+                    }
                   </p>
-                  <div className="mt-2 bg-white rounded-md border border-red-100 p-3">
+                  <div className="mt-2 bg-white rounded-md border border-slate-100 p-3">
                     <div className="flex justify-between text-sm mb-1">
                       <span className="text-slate-600">Model Confidence</span>
-                      <span className="font-medium text-slate-900">94.2%</span>
+                      <span className="font-medium text-slate-900">{result.confidence}%</span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">
-                      <div className="bg-red-500 h-2 rounded-full" style={{ width: '94.2%' }}></div>
+                      <div
+                        className={`h-2 rounded-full ${result.outcome === 'Positive' ? 'bg-red-500' : 'bg-green-500'}`}
+                        style={{ width: `${result.confidence}%` }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -73,7 +170,7 @@ export function Diagnosis() {
             </CardContent>
           </Card>
 
-          {status === 'complete' && (
+          {status === 'complete' && result && patient && (
             <Card>
               <CardHeader>
                 <CardTitle>Generate Report</CardTitle>
@@ -81,21 +178,29 @@ export function Diagnosis() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Radiologist Notes</label>
-                  <textarea 
+                  <textarea
                     className="w-full h-24 rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600"
                     placeholder="Add clinical observations here..."
-                    defaultValue="Consolidation observed in right middle lobe consistent with bacterial pneumonia. Grad-CAM confirms model focus on opacity."
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
                   />
                 </div>
-                <Button className="w-full gap-2">
-                  <FileDown className="h-4 w-4" /> Download Medical Report
-                </Button>
+                {saved ? (
+                  <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-sm text-teal-700 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    Diagnosis record saved successfully.
+                  </div>
+                ) : (
+                  <Button className="w-full gap-2" onClick={handleSaveReport}>
+                    <FileDown className="h-4 w-4" /> Save & Generate Report
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )}
         </div>
 
-        {/* Visualizer Area */}
+        {/* Visualizer */}
         <div className="xl:col-span-2 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden relative shadow-lg">
           <div className="h-12 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-4 shrink-0">
             <h3 className="text-sm font-medium text-slate-200 flex items-center gap-2">
@@ -107,7 +212,7 @@ export function Diagnosis() {
               </Button>
             </div>
           </div>
-          
+
           <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-4 min-h-[500px]">
             {status === 'idle' || status === 'analyzing' ? (
               <div className="col-span-full flex flex-col items-center justify-center text-slate-500 border-2 border-dashed border-slate-700 rounded-lg">
@@ -120,10 +225,10 @@ export function Diagnosis() {
                   <div className="bg-slate-800 text-xs text-slate-300 px-3 py-1.5 rounded-t-md font-medium text-center tracking-wide uppercase">
                     Original CXR Input
                   </div>
-                  <div className="flex-1 bg-black rounded-b-md overflow-hidden relative border border-slate-700 group">
-                    <img 
-                      src="https://images.unsplash.com/photo-1631651363531-fd29aec4cb5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGVzdCUyMHgtcmF5fGVufDF8fHx8MTc4MTc5NDMxNHww&ixlib=rb-4.1.0&q=80&w=1080" 
-                      alt="Original Chest X-Ray" 
+                  <div className="flex-1 bg-black rounded-b-md overflow-hidden relative border border-slate-700">
+                    <img
+                      src="https://images.unsplash.com/photo-1631651363531-fd29aec4cb5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                      alt="Original Chest X-Ray"
                       className="absolute inset-0 w-full h-full object-contain"
                     />
                   </div>
@@ -131,28 +236,29 @@ export function Diagnosis() {
                 <div className="flex flex-col gap-2">
                   <div className="bg-slate-800 text-xs text-slate-300 px-3 py-1.5 rounded-t-md font-medium flex justify-between items-center tracking-wide uppercase">
                     <span>Grad-CAM Heatmap</span>
-                    <span className="text-teal-400 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Processed</span>
+                    <span className="text-teal-400 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" /> Processed
+                    </span>
                   </div>
-                  <div className="flex-1 bg-black rounded-b-md overflow-hidden relative border border-slate-700 group">
-                    {/* Background original image for context */}
-                    <img 
-                      src="https://images.unsplash.com/photo-1631651363531-fd29aec4cb5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGVzdCUyMHgtcmF5fGVufDF8fHx8MTc4MTc5NDMxNHww&ixlib=rb-4.1.0&q=80&w=1080" 
-                      alt="Background Context" 
+                  <div className="flex-1 bg-black rounded-b-md overflow-hidden relative border border-slate-700">
+                    <img
+                      src="https://images.unsplash.com/photo-1631651363531-fd29aec4cb5c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                      alt="Background Context"
                       className="absolute inset-0 w-full h-full object-contain opacity-50 mix-blend-luminosity grayscale"
                     />
-                    {/* Heatmap overlay (using thermal image as approximation for Grad-CAM) */}
-                    <img 
-                      src="https://images.unsplash.com/photo-1767556030469-9c135b2e9a9d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0aGVybWFsJTIwaW1hZ2luZ3xlbnwxfHx8fDE3ODE3OTQzMTd8MA&ixlib=rb-4.1.0&q=80&w=1080" 
-                      alt="Grad-CAM Overlay" 
+                    <img
+                      src="https://images.unsplash.com/photo-1767556030469-9c135b2e9a9d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080"
+                      alt="Grad-CAM Overlay"
                       className="absolute inset-0 w-full h-full object-cover mix-blend-color-dodge opacity-70"
                       style={{ clipPath: 'inset(20% 20% 30% 40%)' }}
                     />
-                    {/* Bounding box representation */}
-                    <div className="absolute border-2 border-red-500 rounded-sm" style={{ top: '25%', left: '45%', width: '30%', height: '40%' }}>
-                      <div className="bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 absolute -top-5 -left-0.5 whitespace-nowrap">
-                        Pneumonia 0.94
+                    {result?.outcome === 'Positive' && (
+                      <div className="absolute border-2 border-red-500 rounded-sm" style={{ top: '25%', left: '45%', width: '30%', height: '40%' }}>
+                        <div className="bg-red-500 text-white text-[10px] font-bold px-1 py-0.5 absolute -top-5 -left-0.5 whitespace-nowrap">
+                          Pneumonia {result.confidence}%
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </>
