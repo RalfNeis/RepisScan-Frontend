@@ -1,51 +1,71 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { apiClient } from '../api/client';
 
 type Role = 'admin' | 'employee';
 
-interface User {
+export interface User {
   id: string;
-  name: string;
-  role: Role;
+  username: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
+  role: Role;
+  title?: string;
+  department?: string;
+  bio?: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  login: (user: User) => void;
-  logout: () => void;
+  loading: boolean;
+  login: (userData: User) => void;
+  logout: () => Promise<void>;
+  checkSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const checkSession = useCallback(async () => {
     try {
-      const stored = localStorage.getItem('repiscan_session');
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
+      // 1. Fetch CSRF token to ensure we have a valid csrftoken cookie
+      await apiClient.get('/auth/csrf/');
+      
+      // 2. Check if a session exists — backend returns user fields directly
+      const response = await apiClient.get<User>('/auth/me/');
+      setUser(response.data);
+    } catch (error) {
+      // 401/403 means no active session — that's fine
+      setUser(null);
+    } finally {
+      setLoading(false);
     }
-  });
+  }, []);
 
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('repiscan_session', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('repiscan_session');
-    }
-  }, [user]);
+    checkSession();
+  }, [checkSession]);
 
   const login = (userData: User) => {
     setUser(userData);
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await apiClient.post('/auth/logout/');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, login, logout, checkSession }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 }

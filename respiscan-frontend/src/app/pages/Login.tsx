@@ -4,35 +4,57 @@ import { HeartPulse, Lock, Mail, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
-import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
+import { useAuth, type User } from '../context/AuthContext';
+import { apiClient } from '../api/client';
+import axios from 'axios';
 
 export function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const { getEmployeeByCredentials } = useData();
-  const [email, setEmail] = useState('');
+  
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (!username || !password) {
+      setError('Please enter both username and password.');
+      return;
+    }
+
     setLoading(true);
 
-    // Simulate a small network delay
-    setTimeout(() => {
-      const employee = getEmployeeByCredentials(email, password);
-      if (employee) {
-        login({ id: employee.id, name: employee.name, role: employee.role, email: employee.email });
-        navigate('/');
-      } else {
-        setError('Invalid email or password. Please try again.');
+    try {
+      // Send login request to the Django backend
+      const response = await apiClient.post('/auth/login/', { username, password });
+      
+      // Check if TOTP is required (2FA)
+      if (response.data.otp_required) {
+        setError('Two-Factor Authentication is currently required but not yet supported in this UI.');
+        return;
       }
+
+      // Backend returns user data directly (not wrapped in {user: ...})
+      const userData: User = response.data;
+      login(userData);
+      navigate('/');
+      
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        // Handle specific API error responses
+        const detail = err.response.data.detail || err.response.data.error || 'Invalid credentials or server error.';
+        setError(detail);
+      } else {
+        setError('Network error. Please check your connection to the server.');
+      }
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (
@@ -47,7 +69,7 @@ export function Login() {
           RespiScan
         </h1>
         <p className="mt-2 text-center text-sm text-slate-500">
-          AI-Powered Bacterial Pneumonia Detection System
+          Clinical Portal Login
         </p>
       </div>
 
@@ -65,13 +87,14 @@ export function Login() {
               )}
 
               <Input
-                label="Email address"
-                type="email"
+                label="Username"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 icon={<Mail className="h-4 w-4" />}
-                placeholder="Enter your email"
+                placeholder="Enter your username"
+                disabled={loading}
               />
 
               <div className="relative">
@@ -83,12 +106,14 @@ export function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   icon={<Lock className="h-4 w-4" />}
                   placeholder="••••••••"
+                  disabled={loading}
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   className="absolute right-3 top-8 text-slate-400 hover:text-slate-600 transition-colors"
                   onClick={() => setShowPassword(v => !v)}
+                  disabled={loading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -114,14 +139,8 @@ export function Login() {
               </div>
 
               <Button type="submit" className="w-full text-base" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? 'Authenticating...' : 'Sign In'}
               </Button>
-
-              <div className="mt-4 border border-slate-100 rounded-lg p-3 bg-slate-50 text-xs text-slate-500 space-y-1">
-                <p className="font-semibold text-slate-600 mb-1">Demo credentials:</p>
-                <p><span className="font-medium">Admin:</span> admin@repiscan.com / admin123</p>
-                <p><span className="font-medium">Employee:</span> employee@repiscan.com / employee123</p>
-              </div>
             </form>
           </CardContent>
         </Card>
