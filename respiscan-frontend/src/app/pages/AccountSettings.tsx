@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
-  User, Lock, Bell, Sliders, Eye, EyeOff, Check,
+  User as UserIcon, Lock, Bell, Sliders, Eye, EyeOff, Check,
   ShieldCheck, Monitor, Database, ChevronRight,
-  AlertTriangle, Clock, Fingerprint,
+  AlertTriangle, Fingerprint,
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, type User } from '../context/AuthContext';
 import { cn } from '../utils/cn';
 
 /* ─── types ─────────────────────────────────────────────── */
@@ -124,8 +124,9 @@ function SaveButton({ saved, label = 'Save Changes', onClick }: {
 
 /* ─── tab: Profile ───────────────────────────────────────── */
 
-function ProfileTab({ user }: { user: { name: string; email: string; role: string } }) {
-  const [name, setName] = useState(user.name);
+function ProfileTab({ user }: { user: User }) {
+  const initialName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username;
+  const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(user.email);
   const [specialty, setSpecialty] = useState(
     user.role === 'admin' ? 'Pulmonology / Radiology' : 'Respiratory Nursing'
@@ -135,7 +136,7 @@ function ProfileTab({ user }: { user: { name: string; email: string; role: strin
   const [saved, setSaved] = useState(false);
 
   const save = () => { setSaved(true); setTimeout(() => setSaved(false), 2400); };
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <div className="space-y-4">
@@ -474,7 +475,7 @@ function SystemTab() {
 /* ─── main page ──────────────────────────────────────────── */
 
 const TABS: { id: TabId; label: string; icon: React.ElementType; roles: string[] }[] = [
-  { id: 'profile', label: 'Profile', icon: User, roles: ['admin', 'employee'] },
+  { id: 'profile', label: 'Profile', icon: UserIcon, roles: ['admin', 'employee'] },
   { id: 'security', label: 'Security', icon: Lock, roles: ['admin', 'employee'] },
   { id: 'notifications', label: 'Notifications', icon: Bell, roles: ['admin', 'employee'] },
   { id: 'system', label: 'System', icon: Sliders, roles: ['admin'] },

@@ -24,6 +24,10 @@ export function Layout() {
 
   if (!user) return null;
 
+  // Build a readable display name from the backend fields
+  const displayName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username;
+  const roleLabel = user.role === 'admin' ? 'Admin' : 'Employee';
+
   const handleLogout = () => {
     logout();
     navigate('/login');
@@ -84,13 +88,13 @@ export function Layout() {
                 src={user.role === 'admin' 
                   ? "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkb2N0b3IlMjBwb3J0cmFpdCUyMHByb2Zlc3Npb25hbHxlbnwxfHx8fDE3ODE3OTQzMjB8MA&ixlib=rb-4.1.0&q=80&w=1080" 
                   : "https://images.unsplash.com/photo-1594824406567-b50e326c07a0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxudXJzZSUyMHBvcnRyYWl0fGVufDB8fHx8MTc4MTc5NDMyMHww&ixlib=rb-4.1.0&q=80&w=1080"} 
-                alt={user.name} 
+                alt={displayName}
                 className="h-full w-full object-cover" 
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user.name}</p>
-              <p className="text-xs text-slate-400 truncate capitalize">{user.role}</p>
+              <p className="text-sm font-medium text-white truncate">{displayName}</p>
+              <p className="text-xs text-slate-400 truncate">{roleLabel}</p>
             </div>
           </div>
           <button
