@@ -31,6 +31,21 @@ export default defineConfig({
     },
   },
 
+  server: {
+    // Match FRONTEND_URL / CSRF_TRUSTED_ORIGINS in the Django .env
+    // (http://localhost:3000). If you change this, update the backend too.
+    port: 3000,
+    proxy: {
+      // Forward API calls to Django so the browser sees /api as same-origin
+      // with the frontend — required for the session + csrftoken cookies
+      // to be set and sent correctly.
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
+
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 })
